@@ -17,4 +17,5 @@ const envKey = getEnv('VITE_SUPABASE_ANON_KEY');
 
 const supabaseUrl = envUrl;
 const supabaseAnonKey = envKey;
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
