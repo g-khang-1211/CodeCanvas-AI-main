@@ -212,6 +212,19 @@ const MainContent = () => {
             </button>
           ))}
         </nav>
+        <a
+          href="https://github.com/g-khang-1211/CodeCanvas-AI-main"
+          target="_blank"
+          rel="noopener noreferrer"
+        className="mt-2 flex items-center gap-3 px-4 py-3 rounded-xl font-medium whitespace-nowrap
+                  text-slate-500 dark:text-slate-400
+                  hover:bg-slate-100 dark:hover:bg-slate-800
+                  transition-colors"
+          aria-label="View source code on GitHub"
+        >
+          <Github size={18} />
+          GitHub
+        </a>
 
         <div className="mt-auto pt-6 border-t border-slate-100 dark:border-slate-800 hidden md:block space-y-3">
           {session ? (
