@@ -6,7 +6,7 @@ import { AIChat } from './components/AIChat';
 import { UnitView } from './components/UnitView';
 import { Login } from './components/Login';
 import { generateSyllabus } from './services/geminiService';
-import { LayoutGrid, BookOpen, Settings as SettingsIcon, ChevronRight, Wand2, Sparkles, X, Home, FileText, Heart, LogIn } from 'lucide-react';
+import { LayoutGrid, BookOpen, Settings as SettingsIcon, ChevronRight, Wand2, Sparkles, X, Home, FileText, Heart, LogIn, Github } from 'lucide-react';
 
 // --- Sub-components for Static Pages ---
 
