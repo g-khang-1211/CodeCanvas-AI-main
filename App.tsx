@@ -232,12 +232,13 @@ const MainContent = () => {
           )}
           
           <a 
-            href="https://buymeacoffee.com" 
+            href="http://buymeacoffee.com/kelvinomg1l" 
             target="_blank" 
             rel="noreferrer"
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-yellow-400/10 text-yellow-600 dark:text-yellow-400 rounded-xl font-bold text-sm hover:bg-yellow-400/20 transition-colors"
+            // className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-yellow-400/10 text-yellow-600 dark:text-yellow-400 rounded-xl font-bold text-sm hover:bg-yellow-400/20 transition-colors"
+            className="hidden"
           >
-            ☕ Donate
+            ☕ Donate 
           </a>
         </div>
       </div>
