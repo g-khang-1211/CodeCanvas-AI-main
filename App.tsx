@@ -60,6 +60,9 @@ const CreditsPage = () => (
       <p className="text-lg text-slate-600 dark:text-slate-400 mb-4">
         Built with ❤️ by the CodeCanvas Team.
       </p>
+      <p className="text-lg text-slate-600 dark:text-slate-400 mt-2">
+        Main developer: Gia Khang- <a href="mailto:kelvinomg1211@gmail.com" className="underline"> kelvinomg1211@gmail.com </a>
+      </p>
       <p className="text-slate-500 dark:text-slate-500">
         Powered by Google Gemini • React • Supabase • TailwindCSS
       </p>
