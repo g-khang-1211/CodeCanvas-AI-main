@@ -13,7 +13,6 @@ export const UnitView: React.FC = () => {
     userApiKey, setShowSettings
   } = useApp();
   
-<<<<<<< HEAD
   const [activeTab, setActiveTab] = useState<'learn' | 'quiz' | 'videos'>(() => {
     if (!selectedUnit) return 'learn';
     const saved = localStorage.getItem(`unit_state_${selectedUnit.id}`);
@@ -23,9 +22,6 @@ export const UnitView: React.FC = () => {
     }
     return 'learn';
   });
-=======
-  const [activeTab, setActiveTab] = useState<'learn' | 'quiz' | 'videos'>('learn');
->>>>>>> 6265f81d6298ae32d1aa1ac6abb60ff026106894
   const [loading, setLoading] = useState(false);
   const [videos, setVideos] = useState<Video[]>([]);
   const [loadingVideos, setLoadingVideos] = useState(false);
@@ -35,7 +31,6 @@ export const UnitView: React.FC = () => {
   const generationRequestId = useRef<number>(0);
   
   // Quiz State
-<<<<<<< HEAD
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, number>>(() => {
     if (!selectedUnit) return {};
     const saved = localStorage.getItem(`unit_state_${selectedUnit.id}`);
@@ -94,24 +89,11 @@ export const UnitView: React.FC = () => {
       }));
     }
   }, [activeTab, selectedAnswers, matchingAnswers, showFrqAnswers, quizSubmitted, configMode, quizCount, selectedTypes, unitFocus, selectedUnit?.id]);
-=======
-  const [selectedAnswers, setSelectedAnswers] = useState<Record<string, number>>({}); // For MCQ
-  const [matchingAnswers, setMatchingAnswers] = useState<Record<string, Record<string, string>>>({}); // For Matching: qId -> term -> selectedDefinition
-  const [showFrqAnswers, setShowFrqAnswers] = useState<Record<string, boolean>>({}); // For FRQ
-  const [quizSubmitted, setQuizSubmitted] = useState(false);
-
-  // Configuration State
-  const [configMode, setConfigMode] = useState(!selectedUnit?.content);
-  const [quizCount, setQuizCount] = useState(3);
-  const [selectedTypes, setSelectedTypes] = useState<QuestionType[]>(['mcq']);
-  const [unitFocus, setUnitFocus] = useState('');
->>>>>>> 6265f81d6298ae32d1aa1ac6abb60ff026106894
 
   useEffect(() => {
     // Reset video state when unit changes
     setVideos([]);
     setVideosFetched(false);
-<<<<<<< HEAD
     
     // Load state from local storage when unit changes
     if (selectedUnit) {
@@ -139,10 +121,6 @@ export const UnitView: React.FC = () => {
         setUnitFocus('');
       }
     }
-=======
-    setActiveTab('learn');
-    setUnitFocus('');
->>>>>>> 6265f81d6298ae32d1aa1ac6abb60ff026106894
   }, [selectedUnit?.id]);
 
   useEffect(() => {
@@ -603,7 +581,6 @@ export const UnitView: React.FC = () => {
           </div>
         </div>
       )}
-<<<<<<< HEAD
       {activeTab === 'videos' && (
         <div className="max-w-4xl mx-auto space-y-6">
           {loadingVideos ? (
@@ -667,8 +644,6 @@ const VideoPlayer = ({ video }: { video: Video }) => {
         <h4 className="font-bold text-gray-900 dark:text-white mb-2 line-clamp-2">{video.title}</h4>
         <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-3 mb-4 flex-1">{video.description}</p>
       </div>
-=======
->>>>>>> 6265f81d6298ae32d1aa1ac6abb60ff026106894
     </div>
   );
 };

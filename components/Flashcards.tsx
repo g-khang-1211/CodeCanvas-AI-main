@@ -1,9 +1,5 @@
 
-<<<<<<< HEAD
 import React, { useState, useRef, useEffect } from 'react';
-=======
-import React, { useState, useRef } from 'react';
->>>>>>> 6265f81d6298ae32d1aa1ac6abb60ff026106894
 import { useApp } from '../context/AppContext';
 import { generateFlashcardsForTopic } from '../services/geminiService';
 import { Flashcard } from '../types';
@@ -11,15 +7,11 @@ import { Brain, RotateCw, ChevronLeft, ChevronRight, Wand2, X } from 'lucide-rea
 
 export const Flashcards: React.FC = () => {
   const { t, selectedUnit, selectedCourse, language, userApiKey, setShowSettings } = useApp();
-<<<<<<< HEAD
   const [cards, setCards] = useState<Flashcard[]>(() => {
     if (!selectedUnit) return [];
     const saved = localStorage.getItem(`flashcards_${selectedUnit.id}`);
     return saved ? JSON.parse(saved) : [];
   });
-=======
-  const [cards, setCards] = useState<Flashcard[]>([]);
->>>>>>> 6265f81d6298ae32d1aa1ac6abb60ff026106894
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -27,7 +19,6 @@ export const Flashcards: React.FC = () => {
   
   const requestId = useRef<number>(0);
 
-<<<<<<< HEAD
   useEffect(() => {
     if (selectedUnit) {
       const saved = localStorage.getItem(`flashcards_${selectedUnit.id}`);
@@ -45,8 +36,6 @@ export const Flashcards: React.FC = () => {
     }
   }, [cards, selectedUnit?.id]);
 
-=======
->>>>>>> 6265f81d6298ae32d1aa1ac6abb60ff026106894
   const handleGenerate = async () => {
     if (!selectedUnit) return;
 
