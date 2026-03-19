@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://codecanvas-ai.onrender.com/sitemap.xml
