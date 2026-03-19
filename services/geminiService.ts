@@ -2,6 +2,37 @@
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { ChatMessage, Flashcard, Unit, Question, QuestionType, Video } from "../types";
 
+const FALLBACK_MODELS = [
+  'gemini-3-flash-preview',
+  'gemini-2.5-flash',
+  'gemini-3.1-flash-lite',
+  'gemini-2.5-flash-lite'
+];
+
+const isQuotaError = (error: any) => {
+  const msg = (error?.message || (typeof error === 'string' ? error : '')).toLowerCase();
+  const status = error?.status;
+  return status === 429 || msg.includes('429') || msg.includes('quota') || msg.includes('rate limit') || msg.includes('too many requests');
+};
+
+const executeWithFallback = async <T>(
+  operation: (model: string) => Promise<T>
+): Promise<T> => {
+  let lastError: any;
+  for (const model of FALLBACK_MODELS) {
+    try {
+      return await operation(model);
+    } catch (error: any) {
+      lastError = error;
+      if (!isQuotaError(error)) {
+        throw error;
+      }
+      console.warn(`Model ${model} failed with quota error, falling back to next model...`);
+    }
+  }
+  throw new Error("Service is currently unavailable due to high demand. Please try again later.");
+};
+
 // Helper to get full language name
 const getLanguageName = (code: string) => {
   const map: Record<string, string> = {
@@ -36,10 +67,11 @@ export const generateChatResponse = async (
   const lang = getLanguageName(languageCode);
 
   try {
-    const model = ai.models;
-    const response = await model.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `Context: You are a friendly, expert tutor. The user is currently studying: ${context}.
+    const modelObj = ai.models;
+    const response = await executeWithFallback(async (modelName) => {
+      return await modelObj.generateContent({
+        model: modelName,
+        contents: `Context: You are a friendly, expert tutor. The user is currently studying: ${context}.
       
       User History: ${JSON.stringify(history.slice(-5))}
       
@@ -71,12 +103,13 @@ export const generateChatResponse = async (
            - If a choice is ambiguous, prefer plain text over code.
       4. Keep it encouraging and clean.
       5. Ensure all information included is correct and up-to-date.`,
+      });
     });
     
     return response.text || "I couldn't generate a response.";
-  } catch (error) {
+  } catch (error: any) {
     console.error("Chat Error:", error);
-    return "Sorry, I encountered an error connecting to the AI. Please check your API key.";
+    return error.message || "Sorry, I encountered an error connecting to the AI. Please check your API key.";
   }
 };
 
@@ -93,35 +126,37 @@ export const generateFlashcardsForTopic = async (
   const lang = getLanguageName(languageCode);
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `Generate ${count} educational flashcards for the topic: "${topic}". 
+    const response = await executeWithFallback(async (modelName) => {
+      return await ai.models.generateContent({
+        model: modelName,
+        contents: `Generate ${count} educational flashcards for the topic: "${topic}". 
       Target audience: ${difficulty} level.
       Output Language: ${lang}.
       
       Return ONLY a JSON array of objects with "front" (question/concept) and "back" (answer/explanation) properties.
       Ensure the content is in ${lang}.`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              front: { type: Type.STRING },
-              back: { type: Type.STRING }
-            },
-            required: ['front', 'back']
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                front: { type: Type.STRING },
+                back: { type: Type.STRING }
+              },
+              required: ['front', 'back']
+            }
           }
         }
-      }
+      });
     });
 
     const jsonText = response.text || "[]";
     return JSON.parse(jsonText);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Flashcard Gen Error:", error);
-    return [{ front: "Error", back: "Could not generate cards. Check API Key." }];
+    return [{ front: "Error", back: error.message || "Could not generate cards. Check API Key." }];
   }
 };
 
@@ -144,29 +179,31 @@ export const generateSyllabus = async (
     : `Create a syllabus of 5 units for learning ${courseName} at a ${level} level. Focus area: ${focus}.`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `${promptContext}
+    const response = await executeWithFallback(async (modelName) => {
+      return await ai.models.generateContent({
+        model: modelName,
+        contents: `${promptContext}
       Output Language: ${lang}.
       
       Return a JSON array of objects with 'id', 'title', 'content' (empty string), and 'questions' (empty array).
       The 'id' should be unique-ish (e.g., 'unit_1').`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              id: { type: Type.STRING },
-              title: { type: Type.STRING },
-              content: { type: Type.STRING }, // Initial empty
-              questions: { type: Type.ARRAY, items: { type: Type.STRING } } // Initial empty
-            },
-            required: ['id', 'title']
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                id: { type: Type.STRING },
+                title: { type: Type.STRING },
+                content: { type: Type.STRING }, // Initial empty
+                questions: { type: Type.ARRAY, items: { type: Type.STRING } } // Initial empty
+              },
+              required: ['id', 'title']
+            }
           }
         }
-      }
+      });
     });
     
     const units = JSON.parse(response.text || "[]");
@@ -178,7 +215,7 @@ export const generateSyllabus = async (
       questions: []
     }));
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Syllabus Gen Error:", error);
     return [];
   }
@@ -201,53 +238,54 @@ export const generateUnitContent = async (
   const typeStr = quizConfig.types.join(', ');
 
   try {
-    // Start Quiz generation in parallel (Promise)
-    const quizPromise = ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `Generate ${quizConfig.count} quiz questions for ${courseName} (${level}) on topic "${unitTitle}".
+    const { fullContentText, questions } = await executeWithFallback(async (modelName) => {
+      // Start Quiz generation in parallel (Promise)
+      const quizPromise = ai.models.generateContent({
+        model: modelName,
+        contents: `Generate ${quizConfig.count} quiz questions for ${courseName} (${level}) on topic "${unitTitle}".
       Allowed Question Types: ${typeStr}.
       Output Language: ${lang}.
       IMPORTANT: The 'text', 'options', 'answer', and 'pairs' MUST be in ${lang}. However, keep specific code syntax or keywords in English/Code format if required.`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            questions: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  id: { type: Type.STRING },
-                  type: { type: Type.STRING },
-                  text: { type: Type.STRING },
-                  options: { type: Type.ARRAY, items: { type: Type.STRING } },
-                  correctIndex: { type: Type.INTEGER },
-                  answer: { type: Type.STRING },
-                  pairs: { 
-                    type: Type.ARRAY, 
-                    items: {
-                      type: Type.OBJECT,
-                      properties: {
-                        term: { type: Type.STRING },
-                        definition: { type: Type.STRING }
-                      }
-                    } 
-                  }
-                },
-                required: ['text', 'type']
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              questions: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    id: { type: Type.STRING },
+                    type: { type: Type.STRING },
+                    text: { type: Type.STRING },
+                    options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    correctIndex: { type: Type.INTEGER },
+                    answer: { type: Type.STRING },
+                    pairs: { 
+                      type: Type.ARRAY, 
+                      items: {
+                        type: Type.OBJECT,
+                        properties: {
+                          term: { type: Type.STRING },
+                          definition: { type: Type.STRING }
+                        }
+                      } 
+                    }
+                  },
+                  required: ['text', 'type']
+                }
               }
-            }
-          },
-          required: ['questions']
+            },
+            required: ['questions']
+          }
         }
-      }
-    });
+      });
 
-    // Start Content generation (Streaming)
-    const contentStreamResponse = await ai.models.generateContentStream({
-      model: 'gemini-3-flash-preview',
-      contents: `Write a comprehensive, engaging educational lesson for ${courseName} (${level}) on the topic: "${unitTitle}".
+      // Start Content generation (Streaming)
+      const contentStreamResponse = await ai.models.generateContentStream({
+        model: modelName,
+        contents: `Write a comprehensive, engaging educational lesson for ${courseName} (${level}) on the topic: "${unitTitle}".
       ${focus ? `Focus primarily on: ${focus}` : ''}
       Output Language: ${lang}.
       
@@ -278,40 +316,43 @@ export const generateUnitContent = async (
             - Code blocks: triple backticks with a language tag.
             - If a choice is ambiguous, prefer plain text over code.
       6. Explain concepts clearly with examples, avoiding massive walls of text.`,
-    });
+      });
 
-    let fullContentText = "";
-    
-    // Process stream
-    for await (const chunk of contentStreamResponse) {
-      const chunkText = (chunk as GenerateContentResponse).text;
-      if (chunkText) {
-        fullContentText += chunkText;
-        if (onProgress) {
-          onProgress(fullContentText);
+      let text = "";
+      
+      // Process stream
+      for await (const chunk of contentStreamResponse) {
+        const chunkText = (chunk as GenerateContentResponse).text;
+        if (chunkText) {
+          text += chunkText;
+          if (onProgress) {
+            onProgress(text);
+          }
         }
       }
-    }
 
-    // Await quiz response after content is done (or it might already be done)
-    const quizResponse = await quizPromise;
-    const quizJson = JSON.parse(quizResponse.text || "{\"questions\": []}");
-    
-    // Add IDs if missing
-    const questions = (quizJson.questions || []).map((q: any, i: number) => ({
-      ...q,
-      id: q.id || `q_${Date.now()}_${i}`
-    }));
+      // Await quiz response after content is done (or it might already be done)
+      const quizResponse = await quizPromise;
+      const quizJson = JSON.parse(quizResponse.text || "{\"questions\": []}");
+      
+      // Add IDs if missing
+      const qs = (quizJson.questions || []).map((q: any, i: number) => ({
+        ...q,
+        id: q.id || `q_${Date.now()}_${i}`
+      }));
+
+      return { fullContentText: text, questions: qs };
+    });
 
     return {
       content: fullContentText,
       questions: questions
     };
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Unit Content Gen Error:", error);
     return {
-      content: "Failed to generate content. Please check your API key and try again.",
+      content: error.message || "Failed to generate content. Please check your API key and try again.",
       questions: []
     };
   }
@@ -328,9 +369,10 @@ export const fetchVideos = async (
   const lang = getLanguageName(languageCode);
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `Find 3 helpful YouTube video tutorials for the topic: "${topic}".
+    const response = await executeWithFallback(async (modelName) => {
+      return await ai.models.generateContent({
+        model: modelName,
+        contents: `Find 3 helpful YouTube video tutorials for the topic: "${topic}".
       Language: ${lang}.
       
       Instructions:
@@ -344,10 +386,11 @@ export const fetchVideos = async (
           { "title": "string", "videoId": "string (11 char ID ONLY)", "description": "short string" }
         ]
       }`,
-      config: {
-        tools: [{googleSearch: {}}],
-        responseMimeType: "application/json"
-      }
+        config: {
+          tools: [{googleSearch: {}}],
+          responseMimeType: "application/json"
+        }
+      });
     });
 
     const jsonText = response.text || "{}";
@@ -357,7 +400,7 @@ export const fetchVideos = async (
     const videos = (data.videos || []).map((v: any) => {
       // If the AI returns a full URL, extract the ID
       let id = v.videoId;
-      if (id.length > 11) {
+      if (id && id.length > 11) {
         const match = id.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
         if (match) id = match[1];
       }

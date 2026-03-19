@@ -38,8 +38,14 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // STRICT REQUIREMENT: Dark mode must be default.
-  const [theme, setTheme] = useState<AppTheme>('dark');
-  const [language, setLanguage] = useState<LanguageCode>('en');
+  const [theme, setTheme] = useState<AppTheme>(() => {
+    const saved = localStorage.getItem('app_theme');
+    return (saved as AppTheme) || 'dark';
+  });
+  const [language, setLanguage] = useState<LanguageCode>(() => {
+    const saved = localStorage.getItem('app_language');
+    return (saved as LanguageCode) || 'en';
+  });
   const [showSettings, setShowSettings] = useState(false);
   
   // Auth State
@@ -51,18 +57,48 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [hasApiKey, setHasApiKey] = useState(false); // Default to false until proven otherwise
 
   // Local state copy of courses
-  const [courses, setCourses] = useState<Course[]>(DEFAULT_COURSES);
-  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
-  const [selectedLevelId, setSelectedLevelId] = useState<string | null>(null);
-  const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
+  const [courses, setCourses] = useState<Course[]>(() => {
+    const saved = localStorage.getItem('app_courses');
+    return saved ? JSON.parse(saved) : DEFAULT_COURSES;
+  });
+  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(() => {
+    return localStorage.getItem('app_selectedCourseId') || null;
+  });
+  const [selectedLevelId, setSelectedLevelId] = useState<string | null>(() => {
+    return localStorage.getItem('app_selectedLevelId') || null;
+  });
+  const [selectedUnitId, setSelectedUnitId] = useState<string | null>(() => {
+    return localStorage.getItem('app_selectedUnitId') || null;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('app_theme', theme);
+  }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem('app_language', language);
+  }, [language]);
+
+  useEffect(() => {
+    localStorage.setItem('app_courses', JSON.stringify(courses));
+  }, [courses]);
+
+  useEffect(() => {
+    if (selectedCourseId) localStorage.setItem('app_selectedCourseId', selectedCourseId);
+    else localStorage.removeItem('app_selectedCourseId');
+  }, [selectedCourseId]);
+
+  useEffect(() => {
+    if (selectedLevelId) localStorage.setItem('app_selectedLevelId', selectedLevelId);
+    else localStorage.removeItem('app_selectedLevelId');
+  }, [selectedLevelId]);
+
+  useEffect(() => {
+    if (selectedUnitId) localStorage.setItem('app_selectedUnitId', selectedUnitId);
+    else localStorage.removeItem('app_selectedUnitId');
+  }, [selectedUnitId]);
 
   // Force Dark Mode on Mount
-  useEffect(() => {
-    document.documentElement.classList.add('dark');
-    setTheme('dark');
-  }, []);
-
-  // Theme Toggle
   useEffect(() => {
     if (theme === 'dark') {
       document.documentElement.classList.add('dark');

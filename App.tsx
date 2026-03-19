@@ -60,9 +60,11 @@ const CreditsPage = () => (
       <p className="text-lg text-slate-600 dark:text-slate-400 mb-4">
         Built with ❤️ by the CodeCanvas Team.
       </p>
+
       <p className="text-lg text-slate-600 dark:text-slate-400 mt-2">
-        Main developer: Gia Khang- <a href="mailto:kelvinomg1211@gmail.com" className="underline"> kelvinomg1211@gmail.com </a>
+        Main developer: Nguyễn Phúc Gia Khang Gia Khang (Kelvin Nguyen) - <a href="mailto:kelvinomg1211@gmail.com" className="underline"> kelvinomg1211@gmail.com </a>
       </p>
+
       <p className="text-slate-500 dark:text-slate-500">
         Powered by Google Gemini • React • Supabase • TailwindCSS
       </p>
@@ -79,11 +81,29 @@ const MainContent = () => {
     showSettings, setShowSettings, session, loadingSession 
   } = useApp();
   
-  const [currentPage, setCurrentPage] = useState<'home' | 'dashboard' | 'docs' | 'credits' | 'auth'>('home');
-  const [syllabusFocus, setSyllabusFocus] = useState('');
-  const [customSubject, setCustomSubject] = useState('');
+  const [currentPage, setCurrentPage] = useState<'home' | 'dashboard' | 'docs' | 'credits' | 'auth'>(() => {
+    return (localStorage.getItem('app_currentPage') as any) || 'home';
+  });
+  const [syllabusFocus, setSyllabusFocus] = useState(() => {
+    return localStorage.getItem('app_syllabusFocus') || '';
+  });
+  const [customSubject, setCustomSubject] = useState(() => {
+    return localStorage.getItem('app_customSubject') || '';
+  });
   const [subjectError, setSubjectError] = useState(false);
   const [generatingSyllabus, setGeneratingSyllabus] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem('app_currentPage', currentPage);
+  }, [currentPage]);
+
+  useEffect(() => {
+    localStorage.setItem('app_syllabusFocus', syllabusFocus);
+  }, [syllabusFocus]);
+
+  useEffect(() => {
+    localStorage.setItem('app_customSubject', customSubject);
+  }, [customSubject]);
 
   const syllabusRequestId = useRef<number>(0);
 

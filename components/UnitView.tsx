@@ -13,7 +13,15 @@ export const UnitView: React.FC = () => {
     userApiKey, setShowSettings
   } = useApp();
   
-  const [activeTab, setActiveTab] = useState<'learn' | 'quiz' | 'videos'>('learn');
+  const [activeTab, setActiveTab] = useState<'learn' | 'quiz' | 'videos'>(() => {
+    if (!selectedUnit) return 'learn';
+    const saved = localStorage.getItem(`unit_state_${selectedUnit.id}`);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return parsed.activeTab || 'learn';
+    }
+    return 'learn';
+  });
   const [loading, setLoading] = useState(false);
   const [videos, setVideos] = useState<Video[]>([]);
   const [loadingVideos, setLoadingVideos] = useState(false);
@@ -23,23 +31,96 @@ export const UnitView: React.FC = () => {
   const generationRequestId = useRef<number>(0);
   
   // Quiz State
-  const [selectedAnswers, setSelectedAnswers] = useState<Record<string, number>>({}); // For MCQ
-  const [matchingAnswers, setMatchingAnswers] = useState<Record<string, Record<string, string>>>({}); // For Matching: qId -> term -> selectedDefinition
-  const [showFrqAnswers, setShowFrqAnswers] = useState<Record<string, boolean>>({}); // For FRQ
-  const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const [selectedAnswers, setSelectedAnswers] = useState<Record<string, number>>(() => {
+    if (!selectedUnit) return {};
+    const saved = localStorage.getItem(`unit_state_${selectedUnit.id}`);
+    return saved ? JSON.parse(saved).selectedAnswers || {} : {};
+  }); // For MCQ
+  const [matchingAnswers, setMatchingAnswers] = useState<Record<string, Record<string, string>>>(() => {
+    if (!selectedUnit) return {};
+    const saved = localStorage.getItem(`unit_state_${selectedUnit.id}`);
+    return saved ? JSON.parse(saved).matchingAnswers || {} : {};
+  }); // For Matching: qId -> term -> selectedDefinition
+  const [showFrqAnswers, setShowFrqAnswers] = useState<Record<string, boolean>>(() => {
+    if (!selectedUnit) return {};
+    const saved = localStorage.getItem(`unit_state_${selectedUnit.id}`);
+    return saved ? JSON.parse(saved).showFrqAnswers || {} : {};
+  }); // For FRQ
+  const [quizSubmitted, setQuizSubmitted] = useState(() => {
+    if (!selectedUnit) return false;
+    const saved = localStorage.getItem(`unit_state_${selectedUnit.id}`);
+    return saved ? JSON.parse(saved).quizSubmitted || false : false;
+  });
 
   // Configuration State
-  const [configMode, setConfigMode] = useState(!selectedUnit?.content);
-  const [quizCount, setQuizCount] = useState(3);
-  const [selectedTypes, setSelectedTypes] = useState<QuestionType[]>(['mcq']);
-  const [unitFocus, setUnitFocus] = useState('');
+  const [configMode, setConfigMode] = useState(() => {
+    if (!selectedUnit) return true;
+    const saved = localStorage.getItem(`unit_state_${selectedUnit.id}`);
+    return saved ? (JSON.parse(saved).configMode ?? !selectedUnit.content) : !selectedUnit.content;
+  });
+  const [quizCount, setQuizCount] = useState(() => {
+    if (!selectedUnit) return 3;
+    const saved = localStorage.getItem(`unit_state_${selectedUnit.id}`);
+    return saved ? JSON.parse(saved).quizCount || 3 : 3;
+  });
+  const [selectedTypes, setSelectedTypes] = useState<QuestionType[]>(() => {
+    if (!selectedUnit) return ['mcq'];
+    const saved = localStorage.getItem(`unit_state_${selectedUnit.id}`);
+    return saved ? JSON.parse(saved).selectedTypes || ['mcq'] : ['mcq'];
+  });
+  const [unitFocus, setUnitFocus] = useState(() => {
+    if (!selectedUnit) return '';
+    const saved = localStorage.getItem(`unit_state_${selectedUnit.id}`);
+    return saved ? JSON.parse(saved).unitFocus || '' : '';
+  });
+
+  useEffect(() => {
+    if (selectedUnit) {
+      localStorage.setItem(`unit_state_${selectedUnit.id}`, JSON.stringify({
+        activeTab,
+        selectedAnswers,
+        matchingAnswers,
+        showFrqAnswers,
+        quizSubmitted,
+        configMode,
+        quizCount,
+        selectedTypes,
+        unitFocus
+      }));
+    }
+  }, [activeTab, selectedAnswers, matchingAnswers, showFrqAnswers, quizSubmitted, configMode, quizCount, selectedTypes, unitFocus, selectedUnit?.id]);
 
   useEffect(() => {
     // Reset video state when unit changes
     setVideos([]);
     setVideosFetched(false);
-    setActiveTab('learn');
-    setUnitFocus('');
+    
+    // Load state from local storage when unit changes
+    if (selectedUnit) {
+      const saved = localStorage.getItem(`unit_state_${selectedUnit.id}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setActiveTab(parsed.activeTab || 'learn');
+        setSelectedAnswers(parsed.selectedAnswers || {});
+        setMatchingAnswers(parsed.matchingAnswers || {});
+        setShowFrqAnswers(parsed.showFrqAnswers || {});
+        setQuizSubmitted(parsed.quizSubmitted || false);
+        setConfigMode(parsed.configMode ?? !selectedUnit.content);
+        setQuizCount(parsed.quizCount || 3);
+        setSelectedTypes(parsed.selectedTypes || ['mcq']);
+        setUnitFocus(parsed.unitFocus || '');
+      } else {
+        setActiveTab('learn');
+        setSelectedAnswers({});
+        setMatchingAnswers({});
+        setShowFrqAnswers({});
+        setQuizSubmitted(false);
+        setConfigMode(!selectedUnit.content);
+        setQuizCount(3);
+        setSelectedTypes(['mcq']);
+        setUnitFocus('');
+      }
+    }
   }, [selectedUnit?.id]);
 
   useEffect(() => {
@@ -500,6 +581,69 @@ export const UnitView: React.FC = () => {
           </div>
         </div>
       )}
+      {activeTab === 'videos' && (
+        <div className="max-w-4xl mx-auto space-y-6">
+          {loadingVideos ? (
+            <div className="flex flex-col items-center justify-center py-20">
+              <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
+              <p className="text-gray-500 dark:text-gray-400">Finding best video tutorials...</p>
+            </div>
+          ) : videos.length === 0 ? (
+            <div className="text-center text-gray-500 py-20">No videos found for this topic.</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {videos.map((video, idx) => (
+                <VideoPlayer key={idx} video={video} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const VideoPlayer = ({ video }: { video: Video }) => {
+  const [isValid, setIsValid] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const checkVideo = async () => {
+      try {
+        const res = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${video.videoId}&format=json`);
+        setIsValid(res.ok);
+      } catch (e) {
+        setIsValid(false);
+      }
+    };
+    checkVideo();
+  }, [video.videoId]);
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-3xl overflow-hidden shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col">
+      <div className="aspect-video bg-gray-100 dark:bg-gray-900 relative">
+        {isValid === null ? (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : isValid === false ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-gray-50 dark:bg-gray-800/50">
+            <AlertTriangle className="text-red-500 mb-2" size={32} />
+            <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">This video is no longer available or is private.</p>
+          </div>
+        ) : (
+          <iframe
+            className="w-full h-full absolute inset-0"
+            src={`https://www.youtube.com/embed/${video.videoId}`}
+            title={video.title}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          ></iframe>
+        )}
+      </div>
+      <div className="p-5 flex-1 flex flex-col">
+        <h4 className="font-bold text-gray-900 dark:text-white mb-2 line-clamp-2">{video.title}</h4>
+        <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-3 mb-4 flex-1">{video.description}</p>
+      </div>
     </div>
   );
 };
