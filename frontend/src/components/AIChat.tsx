@@ -4,10 +4,12 @@ import { useApp } from '../context/AppContext';
 import { generateChatResponse } from '../services/geminiService';
 import { ChatMessage } from '../types';
 import { MessageSquare, Send, Sparkles, X, Minimize2, Maximize2 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
+import { MarkdownRenderer } from './MarkdownRenderer';
+import { useRequireApiKey } from '../hooks/useRequireApiKey';
 
 export const AIChat: React.FC = () => {
-  const { t, selectedUnit, selectedCourse, language, userApiKey, setShowSettings } = useApp();
+  const { t, selectedUnit, selectedCourse, language } = useApp();
+  const requireApiKey = useRequireApiKey();
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [input, setInput] = useState('');
@@ -26,9 +28,8 @@ export const AIChat: React.FC = () => {
   const handleSend = async () => {
     if (!input.trim() || loading) return;
 
-    if (!userApiKey) {
-      alert("Error: No API Key. Please add your API key in settings.");
-      setShowSettings(true);
+    const apiKey = requireApiKey();
+    if (!apiKey) {
       return;
     }
 
@@ -42,7 +43,7 @@ export const AIChat: React.FC = () => {
       : "General Programming";
 
     // Pass language and API Key to generateChatResponse
-    const responseText = await generateChatResponse(userApiKey, messages, userMsg.text, context, language);
+    const responseText = await generateChatResponse(apiKey, messages, userMsg.text, context, language);
     
     const botMsg: ChatMessage = { role: 'model', text: responseText, timestamp: Date.now() };
     setMessages(prev => [...prev, botMsg]);
@@ -101,44 +102,7 @@ export const AIChat: React.FC = () => {
                     ? 'bg-blue-600 text-white rounded-br-none' 
                     : 'bg-white dark:bg-gray-800 dark:text-gray-200 border border-gray-100 dark:border-gray-700 rounded-bl-none'
                 }`}>
-                  <div className={`prose prose-sm dark:prose-invert max-w-none 
-                      ${msg.role === 'user' ? 'prose-headings:text-white prose-p:text-white prose-strong:text-white prose-code:text-white' : ''}
-                    `}>
-                    <ReactMarkdown 
-                      components={{
-                        code: ({node, inline, className, children, ...props}: any) => {
-                          // Check for multi-line content
-                          const content = String(children).replace(/\n$/, '');
-                          const isMultiLine = content.includes('\n');
-
-                          if (inline || !isMultiLine) {
-                            return (
-                              <code className="bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 px-2 py-0.5 rounded-md text-[0.9em] font-mono border border-indigo-100 dark:border-indigo-800/50 align-middle" {...props}>
-                                {children}
-                              </code>
-                            )
-                          }
-                          // Reuse macOS window style in chat
-                          return (
-                            <div className="my-2 rounded-lg overflow-hidden shadow-lg bg-[#1e1e1e] border border-gray-700/50 text-left">
-                               <div className="flex items-center gap-1.5 px-3 py-2 bg-[#2d2d2d] border-b border-gray-700/50">
-                                 <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f56]" />
-                                 <div className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e]" />
-                                 <div className="w-2.5 h-2.5 rounded-full bg-[#27c93f]" />
-                               </div>
-                               <div className="p-3 overflow-x-auto">
-                                 <code className="font-mono text-xs text-gray-200 leading-relaxed" {...props}>
-                                   {children}
-                                 </code>
-                               </div>
-                             </div>
-                          )
-                        }
-                      }}
-                    >
-                      {msg.text}
-                    </ReactMarkdown>
-                  </div>
+                  <MarkdownRenderer content={msg.text} variant="chat" userMessage={msg.role === 'user'} />
                 </div>
               </div>
             ))}

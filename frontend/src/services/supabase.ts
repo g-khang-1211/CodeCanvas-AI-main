@@ -1,6 +1,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 
+
 // Safely access env variables to prevent runtime errors if import.meta.env is undefined
 const getEnv = (key: string) => {
   try {
@@ -11,9 +12,12 @@ const getEnv = (key: string) => {
   }
 };
 
+
 // Prioritize Environment Variables (for Render/Localhost .env), fallback to hardcoded demo values
 const envUrl = getEnv('VITE_SUPABASE_URL');
 const envKey = getEnv('VITE_SUPABASE_ANON_KEY');
+
+
 
 const supabaseUrl = envUrl;
 const supabaseAnonKey = envKey;

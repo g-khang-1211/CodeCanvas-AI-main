@@ -5,61 +5,10 @@
     <meta charset="utf-8" />
     <meta name="description" content="CodeCanvas AI is a AI-powered study platform that helps you learn faster by generating lessons, flashcards, quizzes, and study materials on demand." />
     <meta name="keywords" content="CodeCanvas, learn, knowledge, free, CodeCanvas AI, code canvas ai, codecanvas, code canvas, study programming languages, study, AI-study, AI study, study using ai, AI, Program, Study, Render, CodeCanvas AI Onrender, Programming, Python, AI-powered app, study programming languages, computer science, ict, AI tutor, tutor, test prep, prep for exams, python,c++,cpp,java,html,css,sql,javascript,typescript,all in one, allinone" />
-    <link rel="icon" href="./src/images/web-logo.png"/>
+    <link rel="icon" href="/src/assets/web-logo.png"/>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#000000" />
     <title>CodeCanvas AI</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
-            },
-            animation: {
-              'fade-in': 'fadeIn 0.5s ease-out',
-            },
-            keyframes: {
-              fadeIn: {
-                '0%': { opacity: '0', transform: 'translateY(10px)' },
-                '100%': { opacity: '1', transform: 'translateY(0)' },
-              },
-            }
-          },
-        },
-      }
-    </script>
-    <style>
-       /* Custom scrollbar for webkit */
-       ::-webkit-scrollbar {
-         width: 8px;
-       }
-       ::-webkit-scrollbar-track {
-         background: transparent;
-       }
-       ::-webkit-scrollbar-thumb {
-         background: #d1d5db;
-         border-radius: 4px;
-       }
-       .dark ::-webkit-scrollbar-thumb {
-         background: #4b5563;
-       }
-       /* 3D Transform Utils */
-       .perspective-1000 {
-         perspective: 1000px;
-       }
-       .preserve-3d {
-         transform-style: preserve-3d;
-       }
-       .backface-hidden {
-         backface-visibility: hidden;
-       }
-       .rotate-y-180 {
-         transform: rotateY(180deg);
-       }
-    </style>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <script type="importmap">
 {
@@ -77,10 +26,9 @@
   }
 }
 </script>
-<link rel="stylesheet" href="/index.css">
 </head>
   <body class="bg-white dark:bg-black text-gray-900 dark:text-gray-100 antialiased">
     <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

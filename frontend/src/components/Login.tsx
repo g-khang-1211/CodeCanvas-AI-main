@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../services/supabase';
 import { Sparkles, ArrowRight } from 'lucide-react';
 
 export const Login: React.FC = () => {

@@ -4,13 +4,15 @@ import { useApp } from '../context/AppContext';
 import { generateFlashcardsForTopic } from '../services/geminiService';
 import { Flashcard } from '../types';
 import { Brain, RotateCw, ChevronLeft, ChevronRight, Wand2, X } from 'lucide-react';
+import { useRequireApiKey } from '../hooks/useRequireApiKey';
+import { getStorageJson, removeStorageItem, setStorageJson } from '../utils/storage';
 
 export const Flashcards: React.FC = () => {
-  const { t, selectedUnit, selectedCourse, language, userApiKey, setShowSettings } = useApp();
+  const { t, selectedUnit, selectedCourse, language } = useApp();
+  const requireApiKey = useRequireApiKey();
   const [cards, setCards] = useState<Flashcard[]>(() => {
     if (!selectedUnit) return [];
-    const saved = localStorage.getItem(`flashcards_${selectedUnit.id}`);
-    return saved ? JSON.parse(saved) : [];
+    return getStorageJson(`flashcards_${selectedUnit.id}`, []);
   });
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -21,8 +23,7 @@ export const Flashcards: React.FC = () => {
 
   useEffect(() => {
     if (selectedUnit) {
-      const saved = localStorage.getItem(`flashcards_${selectedUnit.id}`);
-      setCards(saved ? JSON.parse(saved) : []);
+      setCards(getStorageJson(`flashcards_${selectedUnit.id}`, []));
       setCurrentIndex(0);
       setIsFlipped(false);
     }
@@ -30,18 +31,17 @@ export const Flashcards: React.FC = () => {
 
   useEffect(() => {
     if (selectedUnit && cards.length > 0) {
-      localStorage.setItem(`flashcards_${selectedUnit.id}`, JSON.stringify(cards));
+      setStorageJson(`flashcards_${selectedUnit.id}`, cards);
     } else if (selectedUnit && cards.length === 0) {
-      localStorage.removeItem(`flashcards_${selectedUnit.id}`);
+      removeStorageItem(`flashcards_${selectedUnit.id}`);
     }
   }, [cards, selectedUnit?.id]);
 
   const handleGenerate = async () => {
     if (!selectedUnit) return;
 
-    if (!userApiKey) {
-      alert("Error: No API Key. Please add your API key in settings.");
-      setShowSettings(true);
+    const apiKey = requireApiKey();
+    if (!apiKey) {
       return;
     }
 
@@ -51,7 +51,7 @@ export const Flashcards: React.FC = () => {
     
     const topic = `${selectedCourse?.name} - ${selectedUnit.title}`;
     try {
-      const generated = await generateFlashcardsForTopic(userApiKey, topic, language, 'Beginner', count);
+      const generated = await generateFlashcardsForTopic(apiKey, topic, language, 'Beginner', count);
       if (requestId.current === id) {
         setCards(generated);
         setCurrentIndex(0);

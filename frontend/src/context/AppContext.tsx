@@ -1,9 +1,12 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { supabase } from '../lib/supabase';
-import { encryptKey, decryptKey } from '../lib/crypto';
-import { AppTheme, LanguageCode, Course, Level, Unit } from '../types';
+import { Session } from '@supabase/supabase-js';
+import { supabase } from '../services/supabase';
+import { encryptKey, decryptKey } from '../utils/crypto';
+import { AppTheme, LanguageCode, Course, Level, Question, Unit } from '../types';
 import { UI_TEXT, COURSES as DEFAULT_COURSES } from '../constants';
+import { getStorageItem, getStorageJson, removeStorageItem, setStorageItem, setStorageJson } from '../utils/storage';
+import { replaceCourseUnits, replaceUnitContent } from '../utils/courseState';
 
 interface AppContextType {
   theme: AppTheme;
@@ -13,7 +16,7 @@ interface AppContextType {
   t: (key: string) => string;
   courses: Course[];
   updateCourseUnits: (courseId: string, levelId: string, units: Unit[]) => void;
-  updateUnitContent: (courseId: string, levelId: string, unitId: string, content: string, questions: any[]) => void;
+  updateUnitContent: (courseId: string, levelId: string, unitId: string, content: string, questions: Question[]) => void;
   selectedCourse: Course | null;
   selectCourse: (course: Course | null) => void;
   selectedLevel: Level | null;
@@ -25,7 +28,7 @@ interface AppContextType {
   userApiKey: string;
   hasApiKey: boolean; // Source of truth from DB
   setUserApiKey: (key: string) => Promise<void>;
-  session: any;
+  session: Session | null;
   loadingSession: boolean;
   signOut: () => Promise<void>;
   
@@ -39,17 +42,17 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // STRICT REQUIREMENT: Dark mode must be default.
   const [theme, setTheme] = useState<AppTheme>(() => {
-    const saved = localStorage.getItem('app_theme');
+    const saved = getStorageItem('app_theme');
     return (saved as AppTheme) || 'dark';
   });
   const [language, setLanguage] = useState<LanguageCode>(() => {
-    const saved = localStorage.getItem('app_language');
+    const saved = getStorageItem('app_language');
     return (saved as LanguageCode) || 'en';
   });
   const [showSettings, setShowSettings] = useState(false);
   
   // Auth State
-  const [session, setSession] = useState<any>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loadingSession, setLoadingSession] = useState(true);
   
   // API Key State
@@ -58,44 +61,43 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Local state copy of courses
   const [courses, setCourses] = useState<Course[]>(() => {
-    const saved = localStorage.getItem('app_courses');
-    return saved ? JSON.parse(saved) : DEFAULT_COURSES;
+    return getStorageJson('app_courses', DEFAULT_COURSES);
   });
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(() => {
-    return localStorage.getItem('app_selectedCourseId') || null;
+    return getStorageItem('app_selectedCourseId') || null;
   });
   const [selectedLevelId, setSelectedLevelId] = useState<string | null>(() => {
-    return localStorage.getItem('app_selectedLevelId') || null;
+    return getStorageItem('app_selectedLevelId') || null;
   });
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(() => {
-    return localStorage.getItem('app_selectedUnitId') || null;
+    return getStorageItem('app_selectedUnitId') || null;
   });
 
   useEffect(() => {
-    localStorage.setItem('app_theme', theme);
+    setStorageItem('app_theme', theme);
   }, [theme]);
 
   useEffect(() => {
-    localStorage.setItem('app_language', language);
+    setStorageItem('app_language', language);
   }, [language]);
 
   useEffect(() => {
-    localStorage.setItem('app_courses', JSON.stringify(courses));
+    setStorageJson('app_courses', courses);
   }, [courses]);
 
   useEffect(() => {
-    if (selectedCourseId) localStorage.setItem('app_selectedCourseId', selectedCourseId);
-    else localStorage.removeItem('app_selectedCourseId');
+    if (selectedCourseId) setStorageItem('app_selectedCourseId', selectedCourseId);
+    else removeStorageItem('app_selectedCourseId');
   }, [selectedCourseId]);
 
   useEffect(() => {
-    if (selectedLevelId) localStorage.setItem('app_selectedLevelId', selectedLevelId);
-    else localStorage.removeItem('app_selectedLevelId');
+    if (selectedLevelId) setStorageItem('app_selectedLevelId', selectedLevelId);
+    else removeStorageItem('app_selectedLevelId');
   }, [selectedLevelId]);
 
   useEffect(() => {
-    if (selectedUnitId) localStorage.setItem('app_selectedUnitId', selectedUnitId);
-    else localStorage.removeItem('app_selectedUnitId');
+    if (selectedUnitId) setStorageItem('app_selectedUnitId', selectedUnitId);
+    else removeStorageItem('app_selectedUnitId');
   }, [selectedUnitId]);
 
   // Force Dark Mode on Mount
@@ -230,11 +232,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       // 3. Confirm Success
       setHasApiKey(true);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Save error details:', error);
       // We throw so the UI knows it failed, but we leave `userApiKey` set locally
       // so the user isn't blocked for this session.
-      throw new Error(error.message || 'Database save failed');
+      throw new Error(error instanceof Error ? error.message : 'Database save failed');
     }
   };
   
@@ -265,35 +267,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const selectedUnit = selectedLevel?.units.find(u => u.id === selectedUnitId) || null;
 
   const updateCourseUnits = (courseId: string, levelId: string, units: Unit[]) => {
-    setCourses(prev => prev.map(c => {
-      if (c.id !== courseId) return c;
-      return {
-        ...c,
-        levels: c.levels.map(l => {
-          if (l.id !== levelId) return l;
-          return { ...l, units };
-        })
-      };
-    }));
+    setCourses((prev) => replaceCourseUnits(prev, courseId, levelId, units));
   };
 
-  const updateUnitContent = (courseId: string, levelId: string, unitId: string, content: string, questions: any[]) => {
-    setCourses(prev => prev.map(c => {
-      if (c.id !== courseId) return c;
-      return {
-        ...c,
-        levels: c.levels.map(l => {
-          if (l.id !== levelId) return l;
-          return {
-            ...l,
-            units: l.units.map(u => {
-              if (u.id !== unitId) return u;
-              return { ...u, content, questions };
-            })
-          };
-        })
-      };
-    }));
+  const updateUnitContent = (courseId: string, levelId: string, unitId: string, content: string, questions: Question[]) => {
+    setCourses((prev) => replaceUnitContent(prev, courseId, levelId, unitId, content, questions));
   };
 
   return (

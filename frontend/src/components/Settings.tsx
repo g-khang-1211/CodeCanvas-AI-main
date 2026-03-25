@@ -2,10 +2,28 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Moon, Sun, X, Globe, Key, Eye, EyeOff, LogOut, Check, UploadCloud, AlertTriangle } from 'lucide-react';
+import { LanguageCode } from '../types';
 
 interface SettingsProps {
   onClose: () => void;
 }
+
+const LANGUAGE_OPTIONS: Array<{ code: LanguageCode; label: string }> = [
+  { code: 'en', label: 'English' },
+  { code: 'es', label: 'Español' },
+  { code: 'fr', label: 'Français' },
+  { code: 'de', label: 'Deutsch' },
+  { code: 'zh', label: '中文 (Chinese)' },
+  { code: 'ja', label: '日本語 (Japanese)' },
+  { code: 'ko', label: '한국어 (Korean)' },
+  { code: 'pt', label: 'Português' },
+  { code: 'ru', label: 'Русский (Russian)' },
+  { code: 'tr', label: 'Türkçe' },
+  { code: 'it', label: 'Italiano' },
+  { code: 'vi', label: 'Tiếng Việt' },
+  { code: 'hi', label: 'हिन्दी' },
+  { code: 'ar', label: 'العربية' },
+];
 
 export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
   const { 
@@ -38,23 +56,6 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
       setIsSaving(false);
     }
   };
-
-  const languages = [
-    { code: 'en', label: 'English' },
-    { code: 'es', label: 'Español' },
-    { code: 'fr', label: 'Français' },
-    { code: 'de', label: 'Deutsch' },
-    { code: 'zh', label: '中文 (Chinese)' },
-    { code: 'ja', label: '日本語 (Japanese)' },
-    { code: 'ko', label: '한국어 (Korean)' },
-    { code: 'pt', label: 'Português' },
-    { code: 'ru', label: 'Русский (Russian)' },
-    { code: 'tr', label: 'Türkçe' },
-    { code: 'it', label: 'Italiano' },
-    { code: 'vi', label: 'Tiếng Việt' },
-    { code: 'hi', label: 'हिन्दी' },
-    { code: 'ar', label: 'العربية' },
-  ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -180,10 +181,10 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
               <Globe size={16} /> {t('language_label')}
             </label>
             <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto">
-              {languages.map((lang) => (
+              {LANGUAGE_OPTIONS.map((lang) => (
                 <button
                   key={lang.code}
-                  onClick={() => setLanguage(lang.code as any)}
+                  onClick={() => setLanguage(lang.code)}
                   className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all ${
                     language === lang.code 
                       ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' 
