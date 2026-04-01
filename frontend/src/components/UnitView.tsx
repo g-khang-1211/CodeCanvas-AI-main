@@ -15,7 +15,7 @@ import { MarkdownRenderer } from './MarkdownRenderer';
 export const UnitView: React.FC = () => {
   const { 
     selectedUnit, selectedCourse, selectedLevel, selectUnit, updateUnitContent, t, language,
-    userApiKey
+    hasApiKey
   } = useApp();
   const requireApiKey = useRequireApiKey();
   const {
@@ -55,19 +55,19 @@ export const UnitView: React.FC = () => {
 
   useEffect(() => {
     if (activeTab === 'videos' && !videosFetched && selectedUnit) {
-      if (!userApiKey) return;
+      if (!hasApiKey) return;
 
       const loadVideos = async () => {
         setLoadingVideos(true);
         const topic = `${selectedCourse?.name} - ${selectedUnit.title}`;
-        const results = await fetchVideos(userApiKey, topic, language);
+        const results = await fetchVideos('backend-managed', topic, language);
         setVideos(results);
         setVideosFetched(true);
         setLoadingVideos(false);
       };
       loadVideos();
     }
-  }, [activeTab, selectedUnit, videosFetched, selectedCourse, language, userApiKey]);
+  }, [activeTab, selectedUnit, videosFetched, selectedCourse, language, hasApiKey]);
 
   const handleStartLesson = async () => {
     if (selectedUnit && selectedCourse && selectedLevel) {

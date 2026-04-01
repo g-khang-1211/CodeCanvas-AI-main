@@ -1,133 +1,111 @@
 
-import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
-import { ChatMessage, Flashcard, Unit, Question, QuestionType, Video } from "../types";
-import { executeWithFallback } from "./geminiFallback";
-import { getLanguageName } from "./geminiLanguage";
-import { parseFlashcards, parseQuestions, parseSyllabusUnits, parseVideos } from "./geminiParsers";
-import {
-  buildChatPrompt,
-  buildFlashcardsPrompt,
-  buildLessonPrompt,
-  buildQuizPrompt,
-  buildSyllabusPrompt,
-  buildVideosPrompt,
-} from "./geminiPrompts";
+import { getCurrentAccessToken } from './supabase';
+import { ChatMessage, Flashcard, Question, QuestionType, Unit, Video } from '../types';
+
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : 'Request failed';
+
+const authenticatedFetch = async (path: string, body: Record<string, unknown>) => {
+  const accessToken = await getCurrentAccessToken();
+  if (!accessToken) {
+    throw new Error('Unauthorized');
+  }
+
+  const response = await fetch(path, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  return response;
+};
 
 export const generateChatResponse = async (
-  apiKey: string,
+  _apiKey: string,
   history: ChatMessage[], 
   currentMessage: string, 
   context: string,
   languageCode: string = 'en'
 ): Promise<string> => {
-  if (!apiKey) return "API Key is missing. Please check your settings.";
-
-  const ai = new GoogleGenAI({ apiKey });
-  const lang = getLanguageName(languageCode);
-
   try {
-    const modelObj = ai.models;
-    const response = await executeWithFallback(async (modelName) => {
-      return await modelObj.generateContent({
-        model: modelName,
-        contents: buildChatPrompt(context, history, currentMessage, lang),
-      });
+    const response = await authenticatedFetch('/api/gemini/chat', {
+      context,
+      currentMessage,
+      history,
+      languageCode,
     });
-    
-    return response.text || "I couldn't generate a response.";
-  } catch (error: any) {
-    console.error("Chat Error:", error);
-    return error.message || "Sorry, I encountered an error connecting to the AI. Please check your API key.";
+
+    const payload = await response.json();
+    if (!response.ok || typeof payload.text !== 'string') {
+      return payload.error || "Sorry, I encountered an error connecting to the AI. Please check your API key.";
+    }
+
+    return payload.text || "I couldn't generate a response.";
+  } catch (error: unknown) {
+    console.error('Chat Error:', error);
+    return getErrorMessage(error) || "Sorry, I encountered an error connecting to the AI. Please check your API key.";
   }
 };
 
 export const generateFlashcardsForTopic = async (
-  apiKey: string,
+  _apiKey: string,
   topic: string, 
   languageCode: string, 
   difficulty: string,
   count: number = 5
 ): Promise<Flashcard[]> => {
-  if (!apiKey) return [{ front: "API Key Missing", back: "Please check your settings." }];
-
-  const ai = new GoogleGenAI({ apiKey });
-  const lang = getLanguageName(languageCode);
-
   try {
-    const response = await executeWithFallback(async (modelName) => {
-      return await ai.models.generateContent({
-        model: modelName,
-        contents: buildFlashcardsPrompt(topic, difficulty, count, lang),
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                front: { type: Type.STRING },
-                back: { type: Type.STRING }
-              },
-              required: ['front', 'back']
-            }
-          }
-        }
-      });
+    const response = await authenticatedFetch('/api/gemini/flashcards', {
+      count,
+      difficulty,
+      languageCode,
+      topic,
     });
 
-    return parseFlashcards(response.text || '[]');
-  } catch (error: any) {
-    console.error("Flashcard Gen Error:", error);
-    return [{ front: "Error", back: error.message || "Could not generate cards. Check API Key." }];
+    const payload = await response.json();
+    if (!response.ok || !Array.isArray(payload.cards)) {
+      return [{ front: 'Error', back: payload.error || 'Could not generate cards. Check API Key.' }];
+    }
+
+    return payload.cards;
+  } catch (error: unknown) {
+    console.error('Flashcard Gen Error:', error);
+    return [{ front: 'Error', back: getErrorMessage(error) || 'Could not generate cards. Check API Key.' }];
   }
 };
 
 export const generateSyllabus = async (
-  apiKey: string,
+  _apiKey: string,
   courseName: string,
   level: string,
   focus: string = "general",
   languageCode: string = "en"
 ): Promise<Unit[]> => {
-  if (!apiKey) return [];
-
-  const ai = new GoogleGenAI({ apiKey });
-  const lang = getLanguageName(languageCode);
-
   try {
-    const response = await executeWithFallback(async (modelName) => {
-      return await ai.models.generateContent({
-        model: modelName,
-        contents: buildSyllabusPrompt(courseName, level, focus, lang),
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                id: { type: Type.STRING },
-                title: { type: Type.STRING },
-                content: { type: Type.STRING }, // Initial empty
-                questions: { type: Type.ARRAY, items: { type: Type.STRING } } // Initial empty
-              },
-              required: ['id', 'title']
-            }
-          }
-        }
-      });
+    const response = await authenticatedFetch('/api/gemini/syllabus', {
+      courseName,
+      focus,
+      languageCode,
+      level,
     });
-    
-    return parseSyllabusUnits(courseName, level, response.text || '[]');
 
-  } catch (error: any) {
-    console.error("Syllabus Gen Error:", error);
+    const payload = await response.json();
+    if (!response.ok || !Array.isArray(payload.units)) {
+      return [];
+    }
+
+    return payload.units;
+  } catch (error: unknown) {
+    console.error('Syllabus Gen Error:', error);
     return [];
   }
 };
 
 export const generateUnitContent = async (
-  apiKey: string,
+  _apiKey: string,
   courseName: string,
   unitTitle: string,
   level: string,
@@ -136,116 +114,104 @@ export const generateUnitContent = async (
   focus: string = "",
   onProgress?: (partialContent: string) => void
 ): Promise<{ content: string; questions: Question[] }> => {
-  if (!apiKey) return { content: "API Key missing. Please check configuration.", questions: [] };
-
-  const ai = new GoogleGenAI({ apiKey });
-  const lang = getLanguageName(languageCode);
-
   try {
-    const { fullContentText, questions } = await executeWithFallback(async (modelName) => {
-      // Start Quiz generation in parallel (Promise)
-      const quizPromise = ai.models.generateContent({
-        model: modelName,
-        contents: buildQuizPrompt(courseName, level, unitTitle, quizConfig.count, quizConfig.types, lang),
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              questions: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    id: { type: Type.STRING },
-                    type: { type: Type.STRING },
-                    text: { type: Type.STRING },
-                    options: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    correctIndex: { type: Type.INTEGER },
-                    answer: { type: Type.STRING },
-                    pairs: { 
-                      type: Type.ARRAY, 
-                      items: {
-                        type: Type.OBJECT,
-                        properties: {
-                          term: { type: Type.STRING },
-                          definition: { type: Type.STRING }
-                        }
-                      } 
-                    }
-                  },
-                  required: ['text', 'type']
-                }
-              }
-            },
-            required: ['questions']
-          }
-        }
-      });
-
-      // Start Content generation (Streaming)
-      const contentStreamResponse = await ai.models.generateContentStream({
-        model: modelName,
-        contents: buildLessonPrompt(courseName, level, unitTitle, focus, lang),
-      });
-
-      let text = "";
-      
-      // Process stream
-      for await (const chunk of contentStreamResponse) {
-        const chunkText = (chunk as GenerateContentResponse).text;
-        if (chunkText) {
-          text += chunkText;
-          if (onProgress) {
-            onProgress(text);
-          }
-        }
-      }
-
-      // Await quiz response after content is done (or it might already be done)
-      const quizResponse = await quizPromise;
-      return { fullContentText: text, questions: parseQuestions(quizResponse.text || '{"questions": []}') };
+    const response = await authenticatedFetch('/api/gemini/unit', {
+      courseName,
+      focus,
+      languageCode,
+      level,
+      quizConfig,
+      unitTitle,
     });
 
-    return {
-      content: fullContentText,
-      questions: questions
-    };
+    if (!response.ok || !response.body) {
+      const payload = await response.json().catch(() => ({ error: 'Failed to generate content. Please check your API key and try again.' }));
+      return {
+        content: payload.error || 'Failed to generate content. Please check your API key and try again.',
+        questions: [],
+      };
+    }
 
-  } catch (error: any) {
-    console.error("Unit Content Gen Error:", error);
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let accumulatedContent = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.trim()) {
+          continue;
+        }
+
+        const payload = JSON.parse(line) as
+          | { type: 'content'; delta: string }
+          | { type: 'done'; content: string; questions: Question[] }
+          | { type: 'error'; error: string };
+
+        if (payload.type === 'content') {
+          accumulatedContent += payload.delta;
+          if (onProgress) {
+            onProgress(accumulatedContent);
+          }
+        }
+
+        if (payload.type === 'done') {
+          return {
+            content: payload.content,
+            questions: payload.questions,
+          };
+        }
+
+        if (payload.type === 'error') {
+          return {
+            content: payload.error || 'Failed to generate content. Please check your API key and try again.',
+            questions: [],
+          };
+        }
+      }
+    }
+
     return {
-      content: error.message || "Failed to generate content. Please check your API key and try again.",
-      questions: []
+      content: accumulatedContent || 'Failed to generate content. Please check your API key and try again.',
+      questions: [],
+    };
+  } catch (error: unknown) {
+    console.error('Unit Content Gen Error:', error);
+    return {
+      content: getErrorMessage(error) || 'Failed to generate content. Please check your API key and try again.',
+      questions: [],
     };
   }
 };
 
 export const fetchVideos = async (
-  apiKey: string,
+  _apiKey: string,
   topic: string, 
   languageCode: string
 ): Promise<Video[]> => {
-  if (!apiKey) return [];
-
-  const ai = new GoogleGenAI({ apiKey });
-  const lang = getLanguageName(languageCode);
-
   try {
-    const response = await executeWithFallback(async (modelName) => {
-      return await ai.models.generateContent({
-        model: modelName,
-        contents: buildVideosPrompt(topic, lang),
-        config: {
-          tools: [{googleSearch: {}}],
-          responseMimeType: "application/json"
-        }
-      });
+    const response = await authenticatedFetch('/api/gemini/videos', {
+      languageCode,
+      topic,
     });
 
-    return parseVideos(response.text || '{}');
+    const payload = await response.json();
+    if (!response.ok || !Array.isArray(payload.videos)) {
+      return [];
+    }
+
+    return payload.videos;
   } catch (error) {
-    console.error("Fetch Videos Error:", error);
+    console.error('Fetch Videos Error:', error);
     return [];
   }
 };

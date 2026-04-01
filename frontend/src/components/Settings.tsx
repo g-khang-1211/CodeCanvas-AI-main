@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Moon, Sun, X, Globe, Key, Eye, EyeOff, LogOut, Check, UploadCloud, AlertTriangle } from 'lucide-react';
@@ -26,9 +25,9 @@ const LANGUAGE_OPTIONS: Array<{ code: LanguageCode; label: string }> = [
 ];
 
 export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
-  const { 
-    theme, toggleTheme, language, setLanguage, t, 
-    userApiKey, setUserApiKey, signOut, session, hasApiKey
+  const {
+    theme, toggleTheme, language, setLanguage, t,
+    userApiKey, setUserApiKey, signOut, session, hasApiKey,
   } = useApp();
 
   const [inputKey, setInputKey] = useState(userApiKey);
@@ -50,16 +49,21 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
       setIsSaved(true);
       setTimeout(() => setIsSaved(false), 3000);
     } catch (err) {
-      // If saving fails (e.g., DB permissions), we show an error but the key is still applied locally for this session
-      setSaveError("Cloud save failed. Key is active for this session only.");
+      setSaveError(err instanceof Error ? err.message : 'Cloud save failed.');
     } finally {
       setIsSaving(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl shadow-2xl p-6 border border-gray-100 dark:border-slate-800 transition-all">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 backdrop-blur-sm p-4"
+    >
+      <div
+        onClick={(event) => event.stopPropagation()}
+        className="bg-white dark:bg-slate-900 w-full max-w-md max-h-[calc(100vh-2rem)] overflow-y-auto rounded-3xl shadow-2xl p-6 border border-gray-100 dark:border-slate-800 transition-all"
+      >
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold dark:text-white">{t('settings')}</h2>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 dark:text-gray-300">
@@ -68,16 +72,14 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
         </div>
 
         <div className="space-y-6">
-          
-          {/* Account Section */}
           {session && (
             <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                   <h3 className="font-bold text-gray-900 dark:text-white text-sm">Account</h3>
-                   <p className="text-xs text-gray-500 dark:text-gray-400">{session.user.email}</p>
+                  <h3 className="font-bold text-gray-900 dark:text-white text-sm">Account</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{session.user.email}</p>
                 </div>
-                <button 
+                <button
                   onClick={signOut}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg text-xs font-bold hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
                 >
@@ -88,33 +90,32 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
             </div>
           )}
 
-          {/* API Key Section */}
           <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
             <div className="flex items-center gap-2 mb-2">
-               <Key size={18} className="text-blue-500" />
-               <h3 className="font-bold text-gray-900 dark:text-white text-sm">Google Gemini API Key</h3>
+              <Key size={18} className="text-blue-500" />
+              <h3 className="font-bold text-gray-900 dark:text-white text-sm">Google Gemini API Key</h3>
             </div>
-            
+
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
               Your API Key is encrypted and stored securely in the cloud via Supabase.
             </p>
 
             <div className="relative mb-3">
-              <input 
-                type={showKey ? "text" : "password"}
+              <input
+                type={showKey ? 'text' : 'password'}
                 value={inputKey}
                 onChange={(e) => setInputKey(e.target.value)}
                 placeholder="Enter your API Key..."
                 className="w-full pl-3 pr-10 py-2 rounded-xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 focus:ring-2 focus:ring-blue-500 outline-none text-sm dark:text-white"
               />
-              <button 
+              <button
                 onClick={() => setShowKey(!showKey)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
               >
                 {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
-            
+
             {saveError && (
               <div className="flex items-center gap-2 mb-3 text-xs text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 p-2 rounded-lg">
                 <AlertTriangle size={14} />
@@ -122,13 +123,13 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
               </div>
             )}
 
-            <button 
+            <button
               onClick={handleSaveKey}
               disabled={isSaving || !inputKey}
               className={`w-full py-2.5 rounded-lg text-xs font-bold mb-3 flex items-center justify-center gap-2 transition-all ${
-                isSaved 
-                  ? "bg-green-500 text-white" 
-                  : "bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                isSaved
+                  ? 'bg-green-500 text-white'
+                  : 'bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed'
               }`}
             >
               {isSaving ? (
@@ -155,19 +156,18 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
                 Key active & synced
               </div>
             )}
-            
+
             <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="block mt-3 text-xs text-center text-blue-500 hover:underline">
               Get a Gemini API Key
             </a>
           </div>
 
-          {/* Theme Toggle */}
           <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl">
             <div className="flex items-center gap-3">
               {theme === 'light' ? <Sun className="text-orange-500" /> : <Moon className="text-blue-400" />}
               <span className="font-medium dark:text-white">{theme === 'light' ? t('light_mode') : t('dark_mode')}</span>
             </div>
-            <button 
+            <button
               onClick={toggleTheme}
               className={`w-14 h-8 flex items-center rounded-full p-1 transition-colors ${theme === 'dark' ? 'bg-blue-500' : 'bg-gray-300'}`}
             >
@@ -175,7 +175,6 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
             </button>
           </div>
 
-          {/* Language Selection */}
           <div className="space-y-3">
             <label className="flex items-center gap-2 text-sm font-semibold text-gray-500 dark:text-gray-400">
               <Globe size={16} /> {t('language_label')}
@@ -186,8 +185,8 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
                   key={lang.code}
                   onClick={() => setLanguage(lang.code)}
                   className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all ${
-                    language === lang.code 
-                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' 
+                    language === lang.code
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
                       : 'bg-gray-50 dark:bg-slate-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700'
                   }`}
                 >

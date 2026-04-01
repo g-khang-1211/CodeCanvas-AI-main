@@ -4,9 +4,11 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node -e \"const { spawn } = require('node:child_process'); const run = (command) => spawn(command, { shell: true, stdio: 'inherit' }); const frontend = run('npm run dev:frontend'); const backend = run('npm run dev:backend'); let shuttingDown = false; const shutdown = (code) => { if (shuttingDown) return; shuttingDown = true; frontend.kill('SIGTERM'); backend.kill('SIGTERM'); setTimeout(() => process.exit(code), 50); }; frontend.on('exit', (code) => shutdown(code ?? 0)); backend.on('exit', (code) => shutdown(code ?? 0)); process.on('SIGINT', () => shutdown(0)); process.on('SIGTERM', () => shutdown(0));\"",
+    "dev:frontend": "vgit ite",
+    "dev:backend": "node --watch-path=backend --watch-path=.env.local backend/server.js",
     "build": "tsc && vite build",
-    "start": "vite preview --host 0.0.0.0 --port 10000"
+    "start": "NODE_ENV=production node backend/server.js"
   },
   "dependencies": {
     "@google/genai": "0.2.0",

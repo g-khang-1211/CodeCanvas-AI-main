@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Settings } from './components/Settings';
@@ -17,15 +16,13 @@ import { CreditsPage } from './pages/CreditsPage';
 import { DocsPage } from './pages/DocsPage';
 import { LandingPage } from './pages/LandingPage';
 
-// --- Main App Logic ---
-
 type AppPage = 'home' | 'dashboard' | 'docs' | 'credits' | 'auth';
 
 const MainContent = () => {
-  const { 
-    t, courses, selectedCourse, selectCourse, selectedLevel, selectLevel, 
-    selectedUnit, selectUnit, updateCourseUnits, language, userApiKey, 
-    showSettings, setShowSettings, session, loadingSession 
+  const {
+    t, courses, selectedCourse, selectCourse, selectedLevel, selectLevel,
+    selectedUnit, selectUnit, updateCourseUnits, language, hasApiKey,
+    hasLoadedKeyStatus, showSettings, setShowSettings, session, loadingSession, loadingKeyStatus,
   } = useApp();
 
   const requireApiKey = useRequireApiKey();
@@ -37,20 +34,17 @@ const MainContent = () => {
 
   const syllabusRequestId = useRef<number>(0);
 
-  // Auth Redirect Handler
   useEffect(() => {
     if (session) {
       if (currentPage === 'auth') setCurrentPage('dashboard');
-      // If user logs in from home, go to dashboard automatically if they have a key? 
-      // No, let them explore home first, or if they were at auth, push them in.
     }
   }, [session, currentPage]);
 
   useEffect(() => {
-    if (session && !loadingSession && !userApiKey) {
+    if (session && !loadingSession && !loadingKeyStatus && hasLoadedKeyStatus && !hasApiKey) {
       setShowSettings(true);
     }
-  }, [session, loadingSession, userApiKey]);
+  }, [session, loadingSession, loadingKeyStatus, hasLoadedKeyStatus, hasApiKey, setShowSettings]);
 
   const handleGenerateSyllabus = async () => {
     if (!selectedCourse || !selectedLevel) return;
@@ -77,12 +71,12 @@ const MainContent = () => {
     try {
       const units = await generateSyllabus(
         apiKey,
-        targetCourseName, 
-        selectedLevel.id, 
+        targetCourseName,
+        selectedLevel.id,
         targetFocus || `General ${targetCourseName} concepts`,
-        language
+        language,
       );
-      
+
       if (syllabusRequestId.current === requestId) {
         updateCourseUnits(selectedCourse.id, selectedLevel.id, units);
         setGeneratingSyllabus(false);
@@ -90,7 +84,7 @@ const MainContent = () => {
         setCustomSubject('');
       }
     } catch (error) {
-       if (syllabusRequestId.current === requestId) setGeneratingSyllabus(false);
+      if (syllabusRequestId.current === requestId) setGeneratingSyllabus(false);
     }
   };
 
@@ -130,18 +124,17 @@ const MainContent = () => {
     );
   }
 
-  // Unit View (Full Screen Override)
   if (selectedUnit) {
     return (
       <div className="min-h-screen bg-white dark:bg-[#0B0B0F]">
         <div className="max-w-5xl mx-auto px-6 py-8">
-           <UnitView />
+          <UnitView />
         </div>
         <AIChat />
         {showSettings && <Settings onClose={() => setShowSettings(false)} />}
-        <button 
-           onClick={() => setShowSettings(true)}
-           className={`fixed top-6 ${language === 'ar' ? 'left-6' : 'right-6'} p-3 bg-gray-100 dark:bg-slate-800 rounded-full hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors z-30`}
+        <button
+          onClick={() => setShowSettings(true)}
+          className={`fixed top-6 ${language === 'ar' ? 'left-6' : 'right-6'} p-3 bg-gray-100 dark:bg-slate-800 rounded-full hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors z-30`}
         >
           <SettingsIcon size={20} className="dark:text-white" />
         </button>
@@ -149,7 +142,6 @@ const MainContent = () => {
     );
   }
 
-  // --- Main Layout ---
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#0B0B0F] flex flex-col md:flex-row transition-colors duration-300">
       <Sidebar
@@ -160,13 +152,12 @@ const MainContent = () => {
         t={t}
       />
 
-      {/* Content Area */}
       <div className="flex-1 overflow-y-auto h-[calc(100vh-80px)] md:h-screen">
         {currentPage === 'home' && <LandingPage onStart={() => session ? setCurrentPage('dashboard') : setCurrentPage('auth')} />}
         {currentPage === 'docs' && <DocsPage />}
         {currentPage === 'credits' && <CreditsPage />}
         {currentPage === 'auth' && <Login />}
-        
+
         {currentPage === 'dashboard' && session && (
           <div className="p-6 md:p-12 max-w-6xl mx-auto">
             {!selectedCourse ? (

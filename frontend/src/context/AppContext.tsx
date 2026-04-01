@@ -1,8 +1,6 @@
-
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { Session } from '@supabase/supabase-js';
-import { supabase } from '../services/supabase';
-import { encryptKey, decryptKey } from '../utils/crypto';
+import { getAccessTokenForRequest, supabase } from '../services/supabase';
 import { AppTheme, LanguageCode, Course, Level, Question, Unit } from '../types';
 import { UI_TEXT, COURSES as DEFAULT_COURSES } from '../constants';
 import { getStorageItem, getStorageJson, removeStorageItem, setStorageItem, setStorageJson } from '../utils/storage';
@@ -23,15 +21,17 @@ interface AppContextType {
   selectLevel: (level: Level | null) => void;
   selectedUnit: Unit | null;
   selectUnit: (unit: Unit | null) => void;
-  
+
   // Auth & API Key
   userApiKey: string;
-  hasApiKey: boolean; // Source of truth from DB
+  hasApiKey: boolean;
+  hasLoadedKeyStatus: boolean;
   setUserApiKey: (key: string) => Promise<void>;
   session: Session | null;
   loadingSession: boolean;
+  loadingKeyStatus: boolean;
   signOut: () => Promise<void>;
-  
+
   // UI State
   showSettings: boolean;
   setShowSettings: (show: boolean) => void;
@@ -40,7 +40,6 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // STRICT REQUIREMENT: Dark mode must be default.
   const [theme, setTheme] = useState<AppTheme>(() => {
     const saved = getStorageItem('app_theme');
     return (saved as AppTheme) || 'dark';
@@ -50,16 +49,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return (saved as LanguageCode) || 'en';
   });
   const [showSettings, setShowSettings] = useState(false);
-  
-  // Auth State
+
   const [session, setSession] = useState<Session | null>(null);
   const [loadingSession, setLoadingSession] = useState(true);
-  
-  // API Key State
-  const [userApiKey, setUserApiKeyState] = useState('');
-  const [hasApiKey, setHasApiKey] = useState(false); // Default to false until proven otherwise
+  const [loadingKeyStatus, setLoadingKeyStatus] = useState(false);
+  const activeUserIdRef = useRef<string | null>(null);
 
-  // Local state copy of courses
+  const [userApiKey, setUserApiKeyState] = useState('');
+  const [hasApiKey, setHasApiKey] = useState(false);
+  const [hasLoadedKeyStatus, setHasLoadedKeyStatus] = useState(false);
+
   const [courses, setCourses] = useState<Course[]>(() => {
     return getStorageJson('app_courses', DEFAULT_COURSES);
   });
@@ -100,7 +99,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     else removeStorageItem('app_selectedUnitId');
   }, [selectedUnitId]);
 
-  // Force Dark Mode on Mount
   useEffect(() => {
     if (theme === 'dark') {
       document.documentElement.classList.add('dark');
@@ -109,61 +107,62 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [theme]);
 
-  // Auth & Profile Sync
   useEffect(() => {
     let mounted = true;
 
-    // 1. SAFETY TIMEOUT:
-    // If Supabase authentication hangs (common with stale local storage or network hiccups),
-    // force loading to complete after 2 seconds so the user isn't stuck.
     const safetyTimeout = setTimeout(() => {
       if (mounted && loadingSession) {
-        console.warn("Session loading timed out. Forcing app render.");
+        console.warn('Session loading timed out. Forcing app render.');
         setLoadingSession(false);
       }
     }, 2000);
 
     const initAuth = async () => {
       try {
-        // 2. Check Session
         const { data: { session: currentSession }, error } = await supabase.auth.getSession();
-        
+
         if (error) throw error;
 
         if (mounted) {
           if (currentSession) {
             setSession(currentSession);
-            // 3. Fetch Profile (Non-blocking for critical UI)
+            activeUserIdRef.current = currentSession.user.id;
+            setHasLoadedKeyStatus(false);
             try {
-               await fetchProfile(currentSession.user.id);
+              await fetchKeyStatus(currentSession);
             } catch (err) {
-               console.error("Profile load failed, but continuing:", err);
+              console.error('Key status load failed, but continuing:', err);
             }
+          } else {
+            setHasApiKey(false);
+            setHasLoadedKeyStatus(false);
+            setUserApiKeyState('');
           }
         }
       } catch (err) {
-        console.error("Auth initialization error:", err);
+        console.error('Auth initialization error:', err);
       } finally {
-        // 4. Always turn off loading, no matter what
         if (mounted) setLoadingSession(false);
       }
     };
 
     initAuth();
 
-    // 5. Auth Listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       if (!mounted) return;
-      
+
       setSession(newSession);
 
       if (event === 'SIGNED_IN' && newSession) {
-        // Fetch profile to get the key if it exists
-        fetchProfile(newSession.user.id);
+        activeUserIdRef.current = newSession.user.id;
+        setHasLoadedKeyStatus(false);
+        fetchKeyStatus(newSession);
       } else if (event === 'SIGNED_OUT') {
-        // Clear state
+        activeUserIdRef.current = null;
         setUserApiKeyState('');
         setHasApiKey(false);
+        setHasLoadedKeyStatus(false);
+        setLoadingKeyStatus(false);
         setSession(null);
       }
     });
@@ -175,96 +174,110 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
   }, []);
 
-  // Fetch Profile (Boolean check + Encrypted Key if exists)
-  const fetchProfile = async (userId: string) => {
+  const fetchKeyStatus = async (currentSession: Session) => {
+    const requestUserId = currentSession.user.id;
+    setLoadingKeyStatus(true);
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('api_key_encrypted, has_api_key')
-        .eq('id', userId)
-        .maybeSingle();
-      
-      if (error) {
-        console.warn('Profile fetch warning:', error.message);
+      const accessToken = await getAccessTokenForRequest(currentSession, requestUserId);
+      if (!accessToken) {
+        throw new Error('Unauthorized');
+      }
+
+      const response = await fetch('/api/profile/key-status', {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(typeof payload.error === 'string' ? payload.error : 'Failed to load key status');
+      }
+
+      if (activeUserIdRef.current !== requestUserId) {
         return;
       }
 
-      if (data) {
-        setHasApiKey(data.has_api_key);
-        if (data.api_key_encrypted) {
-          const decrypted = decryptKey(data.api_key_encrypted);
-          if (decrypted) setUserApiKeyState(decrypted);
-        }
-      }
+      setHasApiKey(Boolean(payload.hasApiKey));
+      setHasLoadedKeyStatus(true);
+      setUserApiKeyState('');
     } catch (error) {
-      console.error('Error in fetchProfile:', error);
+      console.error('Error loading key status:', error);
+      if (activeUserIdRef.current === requestUserId) {
+        setHasLoadedKeyStatus(false);
+      }
+    } finally {
+      if (activeUserIdRef.current === requestUserId) {
+        setLoadingKeyStatus(false);
+      }
     }
   };
 
-  // Secure Save Logic with Optimistic Update
   const saveUserKey = async (key: string) => {
-    // 1. Optimistic Update: Set state immediately so user can use the app NOW.
-    // This fixes "key not working for content generation" issue.
-    setUserApiKeyState(key);
-    
-    if (!session) return;
-    
+    if (!session) {
+      throw new Error('Please sign in to save your API key.');
+    }
+
+    const requestUserId = session.user.id;
+
     try {
-      const encrypted = encryptKey(key);
-      const userId = session.user.id;
-
-      // 2. Attempt Cloud Save (UPSERT)
-      const { error } = await supabase
-        .from('profiles')
-        .upsert({ 
-          id: userId, 
-          email: session.user.email,
-          api_key_encrypted: encrypted,
-          has_api_key: true,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'id' });
-
-      if (error) {
-        console.error('Supabase upsert error:', error);
-        throw error;
+      const accessToken = await getAccessTokenForRequest(session, requestUserId);
+      if (!accessToken) {
+        throw new Error('Unauthorized');
       }
 
-      // 3. Confirm Success
-      setHasApiKey(true);
+      const response = await fetch('/api/profile/key', {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ apiKey: key }),
+      });
 
-    } catch (error: unknown) {
+      const payload = await response.json().catch(() => ({ success: false }));
+      if (!response.ok) {
+        throw new Error(payload.error || 'Database save failed');
+      }
+
+      if (activeUserIdRef.current === requestUserId) {
+        setUserApiKeyState(key);
+        setHasApiKey(true);
+        setHasLoadedKeyStatus(true);
+      }
+    } catch (error) {
       console.error('Save error details:', error);
-      // We throw so the UI knows it failed, but we leave `userApiKey` set locally
-      // so the user isn't blocked for this session.
       throw new Error(error instanceof Error ? error.message : 'Database save failed');
     }
   };
-  
+
   const signOut = async () => {
     try {
       await supabase.auth.signOut();
     } catch (e) {
-      console.error("Sign out error", e);
+      console.error('Sign out error', e);
     }
+    activeUserIdRef.current = null;
     setUserApiKeyState('');
     setHasApiKey(false);
+    setHasLoadedKeyStatus(false);
+    setLoadingKeyStatus(false);
     setSession(null);
   };
 
   const toggleTheme = () => {
-    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+    setTheme((prev) => prev === 'light' ? 'dark' : 'light');
   };
 
   const t = (key: string): string => {
     const entry = UI_TEXT[key];
     if (!entry) return key;
-    return entry[language] || entry['en'];
+    return entry[language] || entry.en;
   };
 
-  // Helper getters
-  const selectedCourse = courses.find(c => c.id === selectedCourseId) || null;
-  const selectedLevel = selectedCourse?.levels.find(l => l.id === selectedLevelId) || null;
-  const selectedUnit = selectedLevel?.units.find(u => u.id === selectedUnitId) || null;
+  const selectedCourse = courses.find((c) => c.id === selectedCourseId) || null;
+  const selectedLevel = selectedCourse?.levels.find((l) => l.id === selectedLevelId) || null;
+  const selectedUnit = selectedLevel?.units.find((u) => u.id === selectedUnitId) || null;
 
   const updateCourseUnits = (courseId: string, levelId: string, units: Unit[]) => {
     setCourses((prev) => replaceCourseUnits(prev, courseId, levelId, units));
@@ -285,28 +298,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       updateCourseUnits,
       updateUnitContent,
       selectedCourse,
-      selectCourse: (c) => { 
-        setSelectedCourseId(c ? c.id : null); 
-        setSelectedLevelId(null); 
-        setSelectedUnitId(null); 
+      selectCourse: (c) => {
+        setSelectedCourseId(c ? c.id : null);
+        setSelectedLevelId(null);
+        setSelectedUnitId(null);
       },
       selectedLevel,
-      selectLevel: (l) => { 
-        setSelectedLevelId(l ? l.id : null); 
-        setSelectedUnitId(null); 
+      selectLevel: (l) => {
+        setSelectedLevelId(l ? l.id : null);
+        setSelectedUnitId(null);
       },
       selectedUnit,
       selectUnit: (u) => setSelectedUnitId(u ? u.id : null),
-      
       userApiKey,
       hasApiKey,
+      hasLoadedKeyStatus,
       setUserApiKey: saveUserKey,
       session,
       loadingSession,
+      loadingKeyStatus,
       signOut,
-      
       showSettings,
-      setShowSettings
+      setShowSettings,
     }}>
       {children}
     </AppContext.Provider>
@@ -315,6 +328,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
 export const useApp = () => {
   const context = useContext(AppContext);
-  if (!context) throw new Error("useApp must be used within AppProvider");
+  if (!context) throw new Error('useApp must be used within AppProvider');
   return context;
 };
