@@ -1,5 +1,7 @@
 # CodeCanvas AI
 
+## __Development temporarily paused until the end of May (sorry guys too many deadlines for me to continue for now)__
+
 An AI-powered study platform that helps you learn faster by generating lessons, flashcards, quizzes, and study materials on demand.
 
 You choose what you want to learn. The app builds the learning content for you.
@@ -99,5 +101,6 @@ You control your AI usage.
 
 ## Status
 
-Active development. Features and UI may evolve over time.
+~~Active development. Features and UI may evolve over time.~~
+Temporarily suspended until end of May
 
